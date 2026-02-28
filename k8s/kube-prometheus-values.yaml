@@ -4,7 +4,7 @@ prometheus:
     enableFeatures:
       - native-histograms
     tsdb:
-      out_of_order_time_window: 8760h
+      outOfOrderTimeWindow: 8760h
     retention: 365d
     service:
       type: ClusterIP
