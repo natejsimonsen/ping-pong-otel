@@ -2,3 +2,4 @@
 __pycache__/
 *.pyc
 .pong-metrics-state.json
+data/

@@ -2,23 +2,18 @@
 
 import argparse
 import json
-import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import InMemoryMetricReader
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 
 BASE_URL = "https://pong.qfwfq.org/sacrec/rr"
 STATE_FILE = Path.home() / ".pong-metrics-state.json"
-DELAY = 0.5  # seconds between requests
+DATA_DIR = Path(__file__).parent.parent / "data"
 
 
 def parse_page(html: str, event_id: int) -> dict | None:
@@ -28,7 +23,6 @@ def parse_page(html: str, event_id: int) -> dict | None:
     if not title_tag:
         return None
 
-    # Date from second <h1>
     h1s = soup.find_all("h1")
     date_str = None
     location = None
@@ -49,7 +43,6 @@ def parse_page(html: str, event_id: int) -> dict | None:
     players = []
     tables = soup.find_all("table", class_="bordered")
 
-    # Separate division tables from highlights
     division_tables = []
     highlights = {}
     for table in tables:
@@ -77,14 +70,12 @@ def parse_page(html: str, event_id: int) -> dict | None:
             if not cells:
                 continue
 
-            # First cell is old rating
             old_rating_text = cells[0].get_text(strip=True)
             if not old_rating_text.isdigit():
                 continue
 
             old_rating = int(old_rating_text)
 
-            # Second cell is name with link
             name_cell = cells[1]
             link = name_cell.find("a")
             if not link:
@@ -94,7 +85,6 @@ def parse_page(html: str, event_id: int) -> dict | None:
             player_id_match = re.search(r"/profile/(\d+)", href)
             player_id = player_id_match.group(1) if player_id_match else "0"
 
-            # Count wins and losses from result cells
             wins = 0
             losses = 0
             for cell in cells:
@@ -106,8 +96,6 @@ def parse_page(html: str, event_id: int) -> dict | None:
                     elif text == "L":
                         losses += 1
 
-            # Record cell (W-L) - second to last before rank and new rating
-            # Last three ra cells: record, rank, new_rating
             ra_cells = [c for c in cells if "ra" in (c.get("class") or [])]
             if len(ra_cells) < 3:
                 continue
@@ -159,7 +147,6 @@ def scrape_page(event_id: int) -> dict | None:
     try:
         resp = requests.get(url, timeout=30)
         if resp.status_code == 404:
-            print(f"  Page {event_id}: 404, skipping")
             return None
         resp.raise_for_status()
     except requests.RequestException as e:
@@ -168,12 +155,35 @@ def scrape_page(event_id: int) -> dict | None:
     return parse_page(resp.text, event_id)
 
 
+def scrape_range(start: int, end: int, workers: int) -> list[dict]:
+    events = []
+    ids = list(range(start, end + 1))
+    done = 0
+    total = len(ids)
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(scrape_page, eid): eid for eid in ids}
+        for future in as_completed(futures):
+            done += 1
+            eid = futures[future]
+            try:
+                event = future.result()
+            except Exception as e:
+                print(f"  Page {eid}: exception {e}")
+                continue
+            if event:
+                events.append(event)
+                if done % 50 == 0 or done == total:
+                    print(f"  {done}/{total} pages scraped, {len(events)} events parsed")
+
+    events.sort(key=lambda e: e["event_id"])
+    return events
+
+
 def detect_latest() -> int:
-    """Find the latest event ID by checking the main page for navigation links."""
-    # Start from a known high number and probe forward
     last_known = load_state()
     if last_known == 0:
-        last_known = 1170  # reasonable starting point
+        last_known = 1170
 
     current = last_known
     while True:
@@ -184,17 +194,15 @@ def detect_latest() -> int:
                 return current - 1
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, "lxml")
-            # Check if "Next" is a link or plain text
             next_link = None
             for a in soup.find_all("a"):
                 if a.get_text(strip=True) == "Next":
                     next_link = a
                     break
             if next_link is None:
-                # "Next" exists as plain text -- this is the last page
                 return current
             current += 1
-            time.sleep(DELAY)
+            time.sleep(0.5)
         except requests.RequestException:
             return current - 1
 
@@ -208,6 +216,13 @@ def load_state() -> int:
 
 def save_state(last_id: int):
     STATE_FILE.write_text(json.dumps({"last_scraped": last_id}))
+
+
+def load_events(path: Path) -> list[dict]:
+    data = json.loads(path.read_text())
+    if isinstance(data, list):
+        return data
+    return data.get("events", [])
 
 
 def emit_metrics(events: list[dict], endpoint: str):
@@ -237,7 +252,6 @@ def emit_metrics(events: list[dict], endpoint: str):
         ]
     )
 
-    # Build metrics per event in batches
     BATCH_SIZE = 50
     for batch_start in range(0, len(events), BATCH_SIZE):
         batch = events[batch_start : batch_start + BATCH_SIZE]
@@ -247,7 +261,6 @@ def emit_metrics(events: list[dict], endpoint: str):
             eid = str(event["event_id"])
             ts = event["timestamp_ns"]
 
-            # Event-level metrics
             metrics.append(
                 Metric(
                     name="pong.event.player_count",
@@ -281,7 +294,6 @@ def emit_metrics(events: list[dict], endpoint: str):
                 )
             )
 
-            # Player-level metrics
             for p in event["players"]:
                 attrs = [
                     KeyValue(key="player", value=AnyValue(string_value=p["name"])),
@@ -328,22 +340,14 @@ def emit_metrics(events: list[dict], endpoint: str):
 
         try:
             stub.Export(request, timeout=30)
-            print(f"  Exported batch of {len(batch)} events ({len(metrics)} metric points)")
+            print(f"  Exported batch {batch_start // BATCH_SIZE + 1}: {len(batch)} events, {len(metrics)} metrics")
         except grpc.RpcError as e:
             print(f"  gRPC export error: {e.code()} {e.details()}")
 
     channel.close()
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Scrape pong stats and emit OTel metrics")
-    parser.add_argument("--start", type=int, help="Start event ID")
-    parser.add_argument("--end", type=int, help="End event ID")
-    parser.add_argument("--latest", action="store_true", help="Scrape only new pages since last run")
-    parser.add_argument("--endpoint", default="localhost:4317", help="OTel collector gRPC endpoint")
-    parser.add_argument("--dry-run", action="store_true", help="Parse only, don't emit metrics")
-    args = parser.parse_args()
-
+def cmd_scrape(args):
     if args.latest:
         start = load_state() + 1
         end = detect_latest()
@@ -355,34 +359,105 @@ def main():
         start = args.start
         end = args.end
     else:
-        parser.error("Specify --start/--end or --latest")
+        print("Specify --start/--end or --latest")
         return
 
-    events = []
-    for event_id in range(start, end + 1):
-        print(f"Scraping event {event_id}/{end}...")
-        event = scrape_page(event_id)
-        if event:
-            print(f"  {event['date']} @ {event['location']}: {len(event['players'])} players")
-            events.append(event)
-        time.sleep(DELAY)
+    print(f"Scraping {end - start + 1} pages with {args.workers} workers...")
+    events = scrape_range(start, end, args.workers)
 
     if not events:
         print("No events scraped")
         return
 
-    print(f"\nScraped {len(events)} events total")
-
-    if args.dry_run:
-        for e in events:
-            print(f"  Event {e['event_id']}: {e['date']}, {len(e['players'])} players")
-        return
-
-    print(f"Pushing metrics to {args.endpoint}...")
-    emit_metrics(events, args.endpoint)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = DATA_DIR / f"events_{start}_{end}.json"
+    out_path.write_text(json.dumps(events, indent=2))
+    print(f"Saved {len(events)} events to {out_path}")
 
     save_state(end)
-    print(f"Done. State saved (last_scraped={end})")
+
+
+def cmd_push(args):
+    path = Path(args.file)
+    if not path.exists():
+        print(f"File not found: {path}")
+        return
+
+    events = load_events(path)
+    print(f"Loaded {len(events)} events from {path}")
+
+    if args.start or args.end:
+        events = [
+            e for e in events
+            if (args.start is None or e["event_id"] >= args.start)
+            and (args.end is None or e["event_id"] <= args.end)
+        ]
+        print(f"Filtered to {len(events)} events")
+
+    if not events:
+        print("No events to push")
+        return
+
+    print(f"Pushing to {args.endpoint}...")
+    emit_metrics(events, args.endpoint)
+    print("Done")
+
+
+def cmd_validate(args):
+    path = Path(args.file)
+    if not path.exists():
+        print(f"File not found: {path}")
+        return
+
+    events = load_events(path)
+    total_players = sum(len(e["players"]) for e in events)
+    dates = [e["date"] for e in events]
+
+    print(f"Events: {len(events)}")
+    print(f"Date range: {min(dates)} to {max(dates)}")
+    print(f"Total player-event rows: {total_players}")
+
+    if args.player:
+        matches = []
+        for e in events:
+            for p in e["players"]:
+                if args.player.lower() in p["name"].lower():
+                    matches.append((e["date"], e["event_id"], p))
+        print(f"\nMatches for '{args.player}': {len(matches)}")
+        for date, eid, p in matches[-10:]:
+            print(f"  {date} (#{eid}): {p['name']} rating={p['new_rating']} ({p['rating_change']:+d}) {p['wins']}W-{p['losses']}L table {p['table']}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Pong metrics scraper")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    # scrape
+    p_scrape = sub.add_parser("scrape", help="Scrape pages and save to JSON")
+    p_scrape.add_argument("--start", type=int)
+    p_scrape.add_argument("--end", type=int)
+    p_scrape.add_argument("--latest", action="store_true")
+    p_scrape.add_argument("--workers", type=int, default=8, help="Parallel workers (default 8)")
+
+    # push
+    p_push = sub.add_parser("push", help="Push JSON data to OTel collector")
+    p_push.add_argument("file", help="Path to events JSON file")
+    p_push.add_argument("--endpoint", default="localhost:4317")
+    p_push.add_argument("--start", type=int, help="Filter: min event ID")
+    p_push.add_argument("--end", type=int, help="Filter: max event ID")
+
+    # validate
+    p_validate = sub.add_parser("validate", help="Validate and inspect JSON data")
+    p_validate.add_argument("file", help="Path to events JSON file")
+    p_validate.add_argument("--player", help="Filter by player name")
+
+    args = parser.parse_args()
+    if args.command == "scrape":
+        cmd_scrape(args)
+    elif args.command == "push":
+        cmd_push(args)
+    elif args.command == "validate":
+        cmd_validate(args)
 
 
 if __name__ == "__main__":
