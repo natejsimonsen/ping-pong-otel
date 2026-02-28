@@ -1,0 +1,215 @@
+{
+  "dashboard": {
+    "title": "Pong Metrics",
+    "uid": "pong-metrics",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Player Rating Over Time",
+        "type": "timeseries",
+        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "pong_player_rating{player=~\"$player\"}",
+            "legendFormat": "{{player}}",
+            "refId": "A",
+            "datasource": { "uid": "prometheus", "type": "prometheus" }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "spanNulls": true,
+              "pointSize": 5,
+              "showPoints": "auto"
+            }
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "min", "max"] }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Rating Change Per Event",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+        "targets": [
+          {
+            "expr": "pong_player_rating_change{player=~\"$player\"}",
+            "legendFormat": "{{player}}",
+            "refId": "A",
+            "datasource": { "uid": "prometheus", "type": "prometheus" }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "custom": {
+              "drawStyle": "bars",
+              "fillOpacity": 80,
+              "spanNulls": true
+            }
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Wins Per Event",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+        "targets": [
+          {
+            "expr": "pong_player_wins{player=~\"$player\"}",
+            "legendFormat": "{{player}} wins",
+            "refId": "A",
+            "datasource": { "uid": "prometheus", "type": "prometheus" }
+          },
+          {
+            "expr": "pong_player_losses{player=~\"$player\"}",
+            "legendFormat": "{{player}} losses",
+            "refId": "B",
+            "datasource": { "uid": "prometheus", "type": "prometheus" }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "custom": {
+              "drawStyle": "bars",
+              "fillOpacity": 80,
+              "stacking": { "mode": "normal" },
+              "spanNulls": true
+            }
+          },
+          "overrides": [
+            {
+              "matcher": { "id": "byRegexp", "options": ".*losses" },
+              "properties": [
+                { "id": "custom.transform", "value": "negative-Y" }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Table Assignment",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+        "targets": [
+          {
+            "expr": "pong_player_table{player=~\"$player\"}",
+            "legendFormat": "{{player}}",
+            "refId": "A",
+            "datasource": { "uid": "prometheus", "type": "prometheus" }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "custom": {
+              "drawStyle": "line",
+              "spanNulls": true,
+              "pointSize": 5,
+              "showPoints": "auto"
+            }
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "asc" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Event Player Count",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+        "targets": [
+          {
+            "expr": "pong_event_player_count",
+            "legendFormat": "Player Count",
+            "refId": "A",
+            "datasource": { "uid": "prometheus", "type": "prometheus" }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "color": { "mode": "fixed", "fixedColor": "blue" },
+            "custom": {
+              "drawStyle": "bars",
+              "fillOpacity": 50,
+              "spanNulls": true
+            }
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "single" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Event Mean Rating",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
+        "targets": [
+          {
+            "expr": "pong_event_mean_rating",
+            "legendFormat": "Mean Rating",
+            "refId": "A",
+            "datasource": { "uid": "prometheus", "type": "prometheus" }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "color": { "mode": "fixed", "fixedColor": "orange" },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "spanNulls": true,
+              "fillOpacity": 20
+            }
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "single" },
+          "legend": { "displayMode": "list", "placement": "bottom" }
+        }
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "player",
+          "type": "query",
+          "query": "label_values(pong_player_rating, player)",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "multi": true,
+          "includeAll": true,
+          "current": { "text": "Nate Simonsen", "value": "Nate Simonsen" },
+          "refresh": 2
+        }
+      ]
+    },
+    "time": { "from": "2007-01-01T00:00:00.000Z", "to": "now" },
+    "refresh": ""
+  },
+  "overwrite": true
+}
