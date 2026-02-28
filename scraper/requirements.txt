@@ -1,0 +1,6 @@
+requests
+beautifulsoup4
+lxml
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-grpc
