@@ -225,132 +225,111 @@ def load_events(path: Path) -> list[dict]:
     return data.get("events", [])
 
 
-def emit_metrics(events: list[dict], endpoint: str, tls: bool = False, token: str = ""):
-    from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
-    from opentelemetry.proto.metrics.v1.metrics_pb2 import (
-        Gauge,
-        Metric,
-        NumberDataPoint,
-        ResourceMetrics,
-        ScopeMetrics,
-    )
-    from opentelemetry.proto.resource.v1.resource_pb2 import Resource as PBResource
-    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import (
-        ExportMetricsServiceRequest,
-    )
-    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2_grpc import (
-        MetricsServiceStub,
-    )
-    import grpc
+def _encode_varint(n):
+    if n < 0:
+        n += 1 << 64
+    buf = b""
+    while n > 0x7F:
+        buf += bytes([(n & 0x7F) | 0x80])
+        n >>= 7
+    buf += bytes([n])
+    return buf
 
-    if tls:
-        creds = grpc.ssl_channel_credentials()
-        if token:
-            auth_creds = grpc.access_token_call_credentials(token)
-            creds = grpc.composite_channel_credentials(creds, auth_creds)
-        channel = grpc.secure_channel(endpoint, creds)
-    else:
-        channel = grpc.insecure_channel(endpoint)
-    stub = MetricsServiceStub(channel)
 
-    resource = PBResource(
-        attributes=[
-            KeyValue(key="service.name", value=AnyValue(string_value="pong-scraper")),
-        ]
-    )
+def _encode_delimited(field_num, data):
+    tag = _encode_varint((field_num << 3) | 2)
+    return tag + _encode_varint(len(data)) + data
+
+
+def _encode_string(field_num, s):
+    return _encode_delimited(field_num, s.encode())
+
+
+def _encode_double(field_num, val):
+    import struct
+    tag = _encode_varint((field_num << 3) | 1)
+    return tag + struct.pack("<d", val)
+
+
+def _encode_int64(field_num, val):
+    if val < 0:
+        val += 1 << 64
+    return _encode_varint((field_num << 3) | 0) + _encode_varint(val)
+
+
+def _build_write_request(events):
+    timeseries_list = []
+
+    for event in events:
+        ts_ms = event["timestamp_ns"] // 1_000_000
+
+        for metric_name, value in [
+            ("pong_event_player_count", float(event["player_count"])),
+            ("pong_event_mean_rating", event["mean_rating"]),
+        ]:
+            labels = sorted([
+                ("__name__", metric_name),
+                ("location", event.get("location") or ""),
+            ])
+            label_bytes = b""
+            for k, v in labels:
+                label_bytes += _encode_delimited(1, _encode_string(1, k) + _encode_string(2, v))
+            sample_bytes = _encode_delimited(2, _encode_double(1, value) + _encode_int64(2, ts_ms))
+            timeseries_list.append(label_bytes + sample_bytes)
+
+        for p in event["players"]:
+            for metric_name, value in [
+                ("pong_player_rating", float(p["new_rating"])),
+                ("pong_player_rating_change", float(p["rating_change"])),
+                ("pong_player_wins", float(p["wins"])),
+                ("pong_player_losses", float(p["losses"])),
+                ("pong_player_table", float(p["table"])),
+                ("pong_player_rank", float(p["rank"])),
+            ]:
+                labels = sorted([
+                    ("__name__", metric_name),
+                    ("player", p["name"]),
+                    ("player_id", p["player_id"]),
+                ])
+                label_bytes = b""
+                for k, v in labels:
+                    label_bytes += _encode_delimited(1, _encode_string(1, k) + _encode_string(2, v))
+                sample_bytes = _encode_delimited(2, _encode_double(1, value) + _encode_int64(2, ts_ms))
+                timeseries_list.append(label_bytes + sample_bytes)
+
+    body = b""
+    for ts_data in timeseries_list:
+        body += _encode_delimited(1, ts_data)
+    return body, len(timeseries_list)
+
+
+def emit_metrics(events, endpoint, token=""):
+    import snappy
+    from requests.auth import HTTPBasicAuth
+
+    headers = {
+        "Content-Type": "application/x-protobuf",
+        "Content-Encoding": "snappy",
+        "X-Prometheus-Remote-Write-Version": "0.1.0",
+    }
+    auth = None
+    if token and ":" in token:
+        user, key = token.split(":", 1)
+        auth = HTTPBasicAuth(user, key)
 
     BATCH_SIZE = 50
     for batch_start in range(0, len(events), BATCH_SIZE):
         batch = events[batch_start : batch_start + BATCH_SIZE]
-        metrics = []
-
-        for event in batch:
-            eid = str(event["event_id"])
-            ts = event["timestamp_ns"]
-
-            event_attrs = [
-                KeyValue(key="location", value=AnyValue(string_value=event.get("location") or "")),
-            ]
-
-            metrics.append(
-                Metric(
-                    name="pong.event.player_count",
-                    gauge=Gauge(
-                        data_points=[
-                            NumberDataPoint(
-                                as_int=event["player_count"],
-                                time_unix_nano=ts,
-                                attributes=list(event_attrs),
-                            )
-                        ]
-                    ),
-                )
-            )
-            metrics.append(
-                Metric(
-                    name="pong.event.mean_rating",
-                    gauge=Gauge(
-                        data_points=[
-                            NumberDataPoint(
-                                as_double=event["mean_rating"],
-                                time_unix_nano=ts,
-                                attributes=list(event_attrs),
-                            )
-                        ]
-                    ),
-                )
-            )
-
-            for p in event["players"]:
-                attrs = [
-                    KeyValue(key="player", value=AnyValue(string_value=p["name"])),
-                    KeyValue(key="player_id", value=AnyValue(string_value=p["player_id"])),
-                ]
-
-                for metric_name, value, is_int in [
-                    ("pong.player.rating", p["new_rating"], True),
-                    ("pong.player.rating_change", p["rating_change"], True),
-                    ("pong.player.wins", p["wins"], True),
-                    ("pong.player.losses", p["losses"], True),
-                    ("pong.player.table", p["table"], True),
-                    ("pong.player.rank", p["rank"], True),
-                ]:
-                    dp_kwargs = {
-                        "time_unix_nano": ts,
-                        "attributes": list(attrs),
-                    }
-                    if is_int:
-                        dp_kwargs["as_int"] = value
-                    else:
-                        dp_kwargs["as_double"] = value
-
-                    metrics.append(
-                        Metric(
-                            name=metric_name,
-                            gauge=Gauge(data_points=[NumberDataPoint(**dp_kwargs)]),
-                        )
-                    )
-
-        request = ExportMetricsServiceRequest(
-            resource_metrics=[
-                ResourceMetrics(
-                    resource=resource,
-                    scope_metrics=[
-                        ScopeMetrics(
-                            metrics=metrics,
-                        )
-                    ],
-                )
-            ]
-        )
-
+        body, num_series = _build_write_request(batch)
+        compressed = snappy.compress(body)
         try:
-            stub.Export(request, timeout=30)
-            print(f"  Exported batch {batch_start // BATCH_SIZE + 1}: {len(batch)} events, {len(metrics)} metrics")
-        except grpc.RpcError as e:
-            print(f"  gRPC export error: {e.code()} {e.details()}")
-
-    channel.close()
+            resp = requests.post(endpoint, data=compressed, headers=headers, auth=auth, timeout=30)
+            if resp.ok:
+                print(f"  Batch {batch_start // BATCH_SIZE + 1}: {len(batch)} events, {num_series} series")
+            else:
+                print(f"  Error: {resp.status_code} {resp.text}")
+        except requests.RequestException as e:
+            print(f"  Error: {e}")
 
 
 def cmd_scrape(args):
@@ -408,10 +387,9 @@ def cmd_push(args):
         print("No events to push")
         return
 
-    tls = getattr(args, "tls", False)
     token = getattr(args, "token", "") or ""
-    print(f"Pushing to {args.endpoint} (tls={tls})...")
-    emit_metrics(events, args.endpoint, tls=tls, token=token)
+    print(f"Pushing to {args.endpoint}...")
+    emit_metrics(events, args.endpoint, token=token)
     print("Done")
 
 
@@ -452,11 +430,10 @@ def main():
     p_scrape.add_argument("--workers", type=int, default=8, help="Parallel workers (default 8)")
 
     # push
-    p_push = sub.add_parser("push", help="Push JSON data to OTel collector")
+    p_push = sub.add_parser("push", help="Push JSON data via Prometheus remote write")
     p_push.add_argument("file", help="Path to events JSON file")
-    p_push.add_argument("--endpoint", default="localhost:4317")
-    p_push.add_argument("--tls", action="store_true", help="Use TLS (for Grafana Cloud)")
-    p_push.add_argument("--token", help="Bearer token for auth")
+    p_push.add_argument("--endpoint", default="http://localhost:9090/api/v1/write")
+    p_push.add_argument("--token", help="Basic auth token (instance_id:api_key for Grafana Cloud)")
     p_push.add_argument("--start", type=int, help="Filter: min event ID")
     p_push.add_argument("--end", type=int, help="Filter: max event ID")
 
