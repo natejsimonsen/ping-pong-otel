@@ -298,7 +298,6 @@ def emit_metrics(events: list[dict], endpoint: str):
                 attrs = [
                     KeyValue(key="player", value=AnyValue(string_value=p["name"])),
                     KeyValue(key="player_id", value=AnyValue(string_value=p["player_id"])),
-                    KeyValue(key="event_id", value=AnyValue(string_value=eid)),
                 ]
 
                 for metric_name, value, is_int in [

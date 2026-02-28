@@ -11,7 +11,7 @@
         "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
         "targets": [
           {
-            "expr": "pong_player_rating{player=~\"$player\"}",
+            "expr": "last_over_time(pong_player_rating{player=~\"$player\"}[14d])",
             "legendFormat": "{{player}}",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -41,7 +41,7 @@
         "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
         "targets": [
           {
-            "expr": "pong_player_rating_change{player=~\"$player\"}",
+            "expr": "last_over_time(pong_player_rating_change{player=~\"$player\"}[14d])",
             "legendFormat": "{{player}}",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -69,13 +69,13 @@
         "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
         "targets": [
           {
-            "expr": "pong_player_wins{player=~\"$player\"}",
+            "expr": "last_over_time(pong_player_wins{player=~\"$player\"}[14d])",
             "legendFormat": "{{player}} wins",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
           },
           {
-            "expr": "pong_player_losses{player=~\"$player\"}",
+            "expr": "last_over_time(pong_player_losses{player=~\"$player\"}[14d])",
             "legendFormat": "{{player}} losses",
             "refId": "B",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -112,7 +112,7 @@
         "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
         "targets": [
           {
-            "expr": "pong_player_table{player=~\"$player\"}",
+            "expr": "last_over_time(pong_player_table{player=~\"$player\"}[14d])",
             "legendFormat": "{{player}}",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -141,7 +141,7 @@
         "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
         "targets": [
           {
-            "expr": "pong_event_player_count",
+            "expr": "last_over_time(pong_event_player_count[14d])",
             "legendFormat": "Player Count",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -170,7 +170,7 @@
         "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
         "targets": [
           {
-            "expr": "pong_event_mean_rating",
+            "expr": "last_over_time(pong_event_mean_rating[14d])",
             "legendFormat": "Mean Rating",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -199,7 +199,7 @@
         {
           "name": "player",
           "type": "query",
-          "query": "label_values(pong_player_rating, player)",
+          "query": "label_values(pong_player_rating{event_id=\"\"}, player)",
           "datasource": { "uid": "prometheus", "type": "prometheus" },
           "multi": true,
           "includeAll": true,
