@@ -11,7 +11,7 @@
         "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
         "targets": [
           {
-            "expr": "last_over_time(pong_player_rating{player=~\"$player\"}[14d])",
+            "expr": "last_over_time(pong_player_rating{player=~\"$player\", event_id=\"\"}[14d])",
             "legendFormat": "{{player}}",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -23,6 +23,7 @@
             "custom": {
               "drawStyle": "line",
               "lineInterpolation": "smooth",
+              "lineWidth": 2,
               "spanNulls": true,
               "pointSize": 5,
               "showPoints": "auto"
@@ -41,7 +42,7 @@
         "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
         "targets": [
           {
-            "expr": "last_over_time(pong_player_rating_change{player=~\"$player\"}[14d])",
+            "expr": "last_over_time(pong_player_rating_change{player=~\"$player\", event_id=\"\"}[14d])",
             "legendFormat": "{{player}}",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -64,18 +65,18 @@
       },
       {
         "id": 3,
-        "title": "Wins Per Event",
+        "title": "Wins / Losses Per Event",
         "type": "timeseries",
         "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
         "targets": [
           {
-            "expr": "last_over_time(pong_player_wins{player=~\"$player\"}[14d])",
+            "expr": "last_over_time(pong_player_wins{player=~\"$player\", event_id=\"\"}[14d])",
             "legendFormat": "{{player}} wins",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
           },
           {
-            "expr": "last_over_time(pong_player_losses{player=~\"$player\"}[14d])",
+            "expr": "last_over_time(pong_player_losses{player=~\"$player\", event_id=\"\"}[14d])",
             "legendFormat": "{{player}} losses",
             "refId": "B",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -112,7 +113,7 @@
         "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
         "targets": [
           {
-            "expr": "last_over_time(pong_player_table{player=~\"$player\"}[14d])",
+            "expr": "last_over_time(pong_player_table{player=~\"$player\", event_id=\"\"}[14d])",
             "legendFormat": "{{player}}",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -123,6 +124,8 @@
             "unit": "none",
             "custom": {
               "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
               "spanNulls": true,
               "pointSize": 5,
               "showPoints": "auto"
@@ -141,7 +144,7 @@
         "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
         "targets": [
           {
-            "expr": "last_over_time(pong_event_player_count[14d])",
+            "expr": "last_over_time(pong_event_player_count{event_id!=\"\"}[14d])",
             "legendFormat": "Player Count",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -152,8 +155,10 @@
             "unit": "none",
             "color": { "mode": "fixed", "fixedColor": "blue" },
             "custom": {
-              "drawStyle": "bars",
-              "fillOpacity": 50,
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
               "spanNulls": true
             }
           }
@@ -170,7 +175,7 @@
         "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
         "targets": [
           {
-            "expr": "last_over_time(pong_event_mean_rating[14d])",
+            "expr": "last_over_time(pong_event_mean_rating{event_id!=\"\"}[14d])",
             "legendFormat": "Mean Rating",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -183,6 +188,7 @@
             "custom": {
               "drawStyle": "line",
               "lineInterpolation": "smooth",
+              "lineWidth": 2,
               "spanNulls": true,
               "fillOpacity": 20
             }
@@ -202,13 +208,13 @@
           "query": "label_values(pong_player_rating{event_id=\"\"}, player)",
           "datasource": { "uid": "prometheus", "type": "prometheus" },
           "multi": true,
-          "includeAll": true,
+          "includeAll": false,
           "current": { "text": "Nate Simonsen", "value": "Nate Simonsen" },
           "refresh": 2
         }
       ]
     },
-    "time": { "from": "2007-01-01T00:00:00.000Z", "to": "now" },
+    "time": { "from": "2022-01-01T00:00:00.000Z", "to": "now" },
     "refresh": ""
   },
   "overwrite": true
