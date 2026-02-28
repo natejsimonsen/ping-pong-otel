@@ -225,7 +225,7 @@ def load_events(path: Path) -> list[dict]:
     return data.get("events", [])
 
 
-def emit_metrics(events: list[dict], endpoint: str):
+def emit_metrics(events: list[dict], endpoint: str, tls: bool = False, token: str = ""):
     from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
     from opentelemetry.proto.metrics.v1.metrics_pb2 import (
         Gauge,
@@ -243,7 +243,14 @@ def emit_metrics(events: list[dict], endpoint: str):
     )
     import grpc
 
-    channel = grpc.insecure_channel(endpoint)
+    if tls:
+        creds = grpc.ssl_channel_credentials()
+        if token:
+            auth_creds = grpc.access_token_call_credentials(token)
+            creds = grpc.composite_channel_credentials(creds, auth_creds)
+        channel = grpc.secure_channel(endpoint, creds)
+    else:
+        channel = grpc.insecure_channel(endpoint)
     stub = MetricsServiceStub(channel)
 
     resource = PBResource(
@@ -370,8 +377,12 @@ def cmd_scrape(args):
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     out_path = DATA_DIR / f"events_{start}_{end}.json"
+    # Also write/update a stable latest.json for CI
+    latest_path = DATA_DIR / "latest.json"
     out_path.write_text(json.dumps(events, indent=2))
+    latest_path.write_text(json.dumps(events, indent=2))
     print(f"Saved {len(events)} events to {out_path}")
+    print(f"Saved {len(events)} events to {latest_path}")
 
     save_state(end)
 
@@ -397,8 +408,10 @@ def cmd_push(args):
         print("No events to push")
         return
 
-    print(f"Pushing to {args.endpoint}...")
-    emit_metrics(events, args.endpoint)
+    tls = getattr(args, "tls", False)
+    token = getattr(args, "token", "") or ""
+    print(f"Pushing to {args.endpoint} (tls={tls})...")
+    emit_metrics(events, args.endpoint, tls=tls, token=token)
     print("Done")
 
 
@@ -442,6 +455,8 @@ def main():
     p_push = sub.add_parser("push", help="Push JSON data to OTel collector")
     p_push.add_argument("file", help="Path to events JSON file")
     p_push.add_argument("--endpoint", default="localhost:4317")
+    p_push.add_argument("--tls", action="store_true", help="Use TLS (for Grafana Cloud)")
+    p_push.add_argument("--token", help="Bearer token for auth")
     p_push.add_argument("--start", type=int, help="Filter: min event ID")
     p_push.add_argument("--end", type=int, help="Filter: max event ID")
 

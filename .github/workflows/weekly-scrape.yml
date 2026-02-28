@@ -1,0 +1,44 @@
+name: Weekly Scrape
+
+on:
+  schedule:
+    - cron: "0 17 * * 2"  # Tuesday 9:00 AM PST (17:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  scrape-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Restore state
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.pong-metrics-state.json
+          key: scraper-state
+
+      - name: Scrape latest events
+        run: python scraper/scraper.py scrape --latest --workers 20
+
+      - name: Push to Grafana Cloud
+        run: |
+          python scraper/scraper.py push data/latest.json \
+            --endpoint "$GRAFANA_OTLP_ENDPOINT" \
+            --tls \
+            --token "$GRAFANA_OTLP_TOKEN"
+        env:
+          GRAFANA_OTLP_ENDPOINT: ${{ secrets.GRAFANA_OTLP_ENDPOINT }}
+          GRAFANA_OTLP_TOKEN: ${{ secrets.GRAFANA_OTLP_TOKEN }}
+
+      - name: Save state
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.pong-metrics-state.json
+          key: scraper-state-${{ github.run_id }}
