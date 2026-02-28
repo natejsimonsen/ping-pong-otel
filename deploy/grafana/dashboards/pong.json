@@ -32,7 +32,7 @@
       },
       "targets": [
         {
-          "expr": "last_over_time(pong_player_rating{player=~\"$player\", event_id=\"\"}[90d])",
+          "expr": "last_over_time(pong_player_rating{player=~\"$player\", }[90d])",
           "legendFormat": "{{player}}",
           "refId": "A",
           "datasource": {
@@ -55,8 +55,7 @@
             "gradientMode": "opacity"
           },
           "color": {
-            "mode": "fixed",
-            "fixedColor": "#5794F2"
+            "mode": "palette-classic"
           }
         }
       },
@@ -89,7 +88,7 @@
       },
       "targets": [
         {
-          "expr": "last_over_time(pong_player_rating_change{player=~\"$player\", event_id=\"\"}[90d])",
+          "expr": "last_over_time(pong_player_rating_change{player=~\"$player\", }[90d])",
           "legendFormat": "{{player}}",
           "refId": "A",
           "datasource": {
@@ -108,8 +107,7 @@
             "lineWidth": 0
           },
           "color": {
-            "mode": "continuous-GrYlRd",
-            "seriesBy": "last"
+            "mode": "palette-classic"
           },
           "thresholds": {
             "mode": "absolute",
@@ -157,7 +155,7 @@
       },
       "targets": [
         {
-          "expr": "last_over_time(pong_player_wins{player=~\"$player\", event_id=\"\"}[90d])",
+          "expr": "last_over_time(pong_player_wins{player=~\"$player\", }[90d])",
           "legendFormat": "{{player}} W",
           "refId": "A",
           "datasource": {
@@ -166,7 +164,7 @@
           }
         },
         {
-          "expr": "last_over_time(pong_player_losses{player=~\"$player\", event_id=\"\"}[90d])",
+          "expr": "last_over_time(pong_player_losses{player=~\"$player\", }[90d])",
           "legendFormat": "{{player}} L",
           "refId": "B",
           "datasource": {
@@ -248,7 +246,7 @@
       },
       "targets": [
         {
-          "expr": "-1 * last_over_time(pong_player_table{player=~\"$player\", event_id=\"\"}[90d])",
+          "expr": "-1 * last_over_time(pong_player_table{player=~\"$player\", }[90d])",
           "legendFormat": "{{player}}",
           "refId": "A",
           "datasource": {
@@ -274,8 +272,7 @@
             "axisSoftMax": -1
           },
           "color": {
-            "mode": "fixed",
-            "fixedColor": "#B877D9"
+            "mode": "palette-classic"
           },
           "decimals": 0,
           "mappings": [
@@ -454,7 +451,7 @@
       {
         "name": "player",
         "type": "query",
-        "query": "label_values(pong_player_rating{event_id=\"\"}, player)",
+        "query": "label_values(pong_player_rating{}, player)",
         "datasource": {
           "uid": "prometheus",
           "type": "prometheus"
@@ -471,7 +468,7 @@
     ]
   },
   "time": {
-    "from": "2007-01-01T00:00:00.000Z",
+    "from": "now-1y",
     "to": "now"
   },
   "refresh": ""

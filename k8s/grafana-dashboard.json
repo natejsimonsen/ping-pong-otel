@@ -23,7 +23,7 @@
         "gridPos": { "h": 10, "w": 24, "x": 0, "y": 2 },
         "targets": [
           {
-            "expr": "last_over_time(pong_player_rating{player=~\"$player\", event_id=\"\"}[90d])",
+            "expr": "last_over_time(pong_player_rating{player=~\"$player\", }[90d])",
             "legendFormat": "{{player}}",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -42,7 +42,7 @@
               "fillOpacity": 8,
               "gradientMode": "opacity"
             },
-            "color": { "mode": "fixed", "fixedColor": "#5794F2" }
+            "color": { "mode": "palette-classic" }
           }
         },
         "options": {
@@ -57,7 +57,7 @@
         "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
         "targets": [
           {
-            "expr": "last_over_time(pong_player_rating_change{player=~\"$player\", event_id=\"\"}[90d])",
+            "expr": "last_over_time(pong_player_rating_change{player=~\"$player\", }[90d])",
             "legendFormat": "{{player}}",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -72,7 +72,7 @@
               "spanNulls": true,
               "lineWidth": 0
             },
-            "color": { "mode": "continuous-GrYlRd", "seriesBy": "last" },
+            "color": { "mode": "palette-classic" },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -96,13 +96,13 @@
         "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
         "targets": [
           {
-            "expr": "last_over_time(pong_player_wins{player=~\"$player\", event_id=\"\"}[90d])",
+            "expr": "last_over_time(pong_player_wins{player=~\"$player\", }[90d])",
             "legendFormat": "{{player}} W",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
           },
           {
-            "expr": "last_over_time(pong_player_losses{player=~\"$player\", event_id=\"\"}[90d])",
+            "expr": "last_over_time(pong_player_losses{player=~\"$player\", }[90d])",
             "legendFormat": "{{player}} L",
             "refId": "B",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -147,7 +147,7 @@
         "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
         "targets": [
           {
-            "expr": "-1 * last_over_time(pong_player_table{player=~\"$player\", event_id=\"\"}[90d])",
+            "expr": "-1 * last_over_time(pong_player_table{player=~\"$player\", }[90d])",
             "legendFormat": "{{player}}",
             "refId": "A",
             "datasource": { "uid": "prometheus", "type": "prometheus" }
@@ -169,7 +169,7 @@
               "axisSoftMin": -12,
               "axisSoftMax": -1
             },
-            "color": { "mode": "fixed", "fixedColor": "#B877D9" },
+            "color": { "mode": "palette-classic" },
             "decimals": 0,
             "mappings": [
               { "type": "value", "options": { "-1": { "text": "1" }, "-2": { "text": "2" }, "-3": { "text": "3" }, "-4": { "text": "4" }, "-5": { "text": "5" }, "-6": { "text": "6" }, "-7": { "text": "7" }, "-8": { "text": "8" }, "-9": { "text": "9" }, "-10": { "text": "10" }, "-11": { "text": "11" }, "-12": { "text": "12" } } }
@@ -264,7 +264,7 @@
         {
           "name": "player",
           "type": "query",
-          "query": "label_values(pong_player_rating{event_id=\"\"}, player)",
+          "query": "label_values(pong_player_rating{}, player)",
           "datasource": { "uid": "prometheus", "type": "prometheus" },
           "multi": true,
           "includeAll": false,
@@ -274,7 +274,7 @@
         }
       ]
     },
-    "time": { "from": "2007-01-01T00:00:00.000Z", "to": "now" },
+    "time": { "from": "now-1y", "to": "now" },
     "refresh": ""
   },
   "overwrite": true
