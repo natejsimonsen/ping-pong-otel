@@ -261,6 +261,10 @@ def emit_metrics(events: list[dict], endpoint: str):
             eid = str(event["event_id"])
             ts = event["timestamp_ns"]
 
+            event_attrs = [
+                KeyValue(key="location", value=AnyValue(string_value=event.get("location") or "")),
+            ]
+
             metrics.append(
                 Metric(
                     name="pong.event.player_count",
@@ -269,9 +273,7 @@ def emit_metrics(events: list[dict], endpoint: str):
                             NumberDataPoint(
                                 as_int=event["player_count"],
                                 time_unix_nano=ts,
-                                attributes=[
-                                    KeyValue(key="event_id", value=AnyValue(string_value=eid)),
-                                ],
+                                attributes=list(event_attrs),
                             )
                         ]
                     ),
@@ -285,9 +287,7 @@ def emit_metrics(events: list[dict], endpoint: str):
                             NumberDataPoint(
                                 as_double=event["mean_rating"],
                                 time_unix_nano=ts,
-                                attributes=[
-                                    KeyValue(key="event_id", value=AnyValue(string_value=eid)),
-                                ],
+                                attributes=list(event_attrs),
                             )
                         ]
                     ),
