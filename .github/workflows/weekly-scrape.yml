@@ -27,15 +27,12 @@ jobs:
       - name: Scrape latest events
         run: python scraper/scraper.py scrape --latest --workers 20
 
-      - name: Push to Grafana Cloud
+      - name: Push to Prometheus
         run: |
           python scraper/scraper.py push data/latest.json \
-            --endpoint "$GRAFANA_OTLP_ENDPOINT" \
-            --tls \
-            --token "$GRAFANA_OTLP_TOKEN"
+            --endpoint "$PROMETHEUS_ENDPOINT"
         env:
-          GRAFANA_OTLP_ENDPOINT: ${{ secrets.GRAFANA_OTLP_ENDPOINT }}
-          GRAFANA_OTLP_TOKEN: ${{ secrets.GRAFANA_OTLP_TOKEN }}
+          PROMETHEUS_ENDPOINT: ${{ secrets.PROMETHEUS_ENDPOINT }}
 
       - name: Save state
         uses: actions/cache/save@v4
