@@ -1,10 +1,9 @@
 services:
   prometheus:
-    image: prom/prometheus:v2.54.1
+    image: prom/prometheus:latest
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--web.enable-remote-write-receiver'
-      - '--storage.tsdb.out-of-order-time-window=175200h'
       - '--storage.tsdb.retention.time=5y'
     ports:
       - "9090:9090"
